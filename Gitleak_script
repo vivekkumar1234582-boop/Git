@@ -1,4 +1,3 @@
-
 pipeline {
     agent any
 
@@ -13,7 +12,7 @@ pipeline {
         stage('Gitleaks Secret Scan') {
             steps {
                 sh '''
-                    set -eu
+                    set +e
 
                     docker run --rm \
                       -v "$WORKSPACE:/path" \
@@ -25,7 +24,39 @@ pipeline {
                       --report-format=json \
                       --report-path=/path/gitleaks-report.json \
                       --exit-code=1
+
+                    RESULT=$?
+                    echo "$RESULT" > gitleaks-exit-code.txt
+
+                    exit 0
                 '''
+            }
+        }
+
+        stage('Gitleaks Report') {
+            steps {
+                script {
+                    if (fileExists('gitleaks-report.json')) {
+                        sh 'cat gitleaks-report.json'
+
+                        archiveArtifacts(
+                            artifacts: 'gitleaks-report.json',
+                            allowEmptyArchive: false
+                        )
+                    } else {
+                        error 'Gitleaks report was not generated!'
+                    }
+
+                    def scanResult = readFile(
+                        'gitleaks-exit-code.txt'
+                    ).trim()
+
+                    if (scanResult != '0') {
+                        error 'Gitleaks detected potential secrets. Check the archived report.'
+                    }
+
+                    echo 'Gitleaks scan passed. No leaks detected.'
+                }
             }
         }
     }
@@ -33,17 +64,9 @@ pipeline {
     post {
         always {
             archiveArtifacts(
-                artifacts: 'gitleaks-report.json',
+                artifacts: 'gitleaks-report.json,gitleaks-exit-code.txt',
                 allowEmptyArchive: true
             )
-        }
-
-        success {
-            echo 'Gitleaks scan completed successfully.'
-        }
-
-        failure {
-            echo 'Pipeline failed. Check the Console Output.'
         }
     }
 }
