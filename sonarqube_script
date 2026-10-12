@@ -1,0 +1,32 @@
+pipeline {
+    agent any
+
+    environment {
+        // Resolves the SonarQube Scanner tool configured in Manage Jenkins > Tools
+        SCANNER_HOME = tool name: 'sonarqube',
+                            type: 'hudson.plugins.sonar.SonarRunnerInstallation'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/vivekics/3-Tier-Full-Stack-capm-project.git'
+            }
+        }
+
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonarqube') {
+                    sh """
+                        ${SCANNER_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectKey=capm-project \
+                        -Dsonar.projectName=capm-project \
+                        -Dsonar.sources=. \
+                        -Dsonar.exclusions=*/node_modules/,/gen/*
+                    """
+                }
+            }
+        }
+    }
+}
