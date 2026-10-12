@@ -1,0 +1,49 @@
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'master',
+                    url: 'https://github.com/vivekkumar1234582-boop/hello-world.git'
+            }
+        }
+
+        stage('Gitleaks Secret Scan') {
+            steps {
+                sh '''
+                    set -eu
+
+                    docker run --rm \
+                      -v "$WORKSPACE:/path" \
+                      zricethezav/gitleaks:latest \
+                      detect \
+                      --source=/path \
+                      --no-git \
+                      --redact \
+                      --report-format=json \
+                      --report-path=/path/gitleaks-report.json \
+                      --exit-code=1
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts(
+                artifacts: 'gitleaks-report.json',
+                allowEmptyArchive: true
+            )
+        }
+
+        success {
+            echo 'Gitleaks scan completed successfully.'
+        }
+
+        failure {
+            echo 'Pipeline failed. Check the Console Output.'
+        }
+    }
+}
